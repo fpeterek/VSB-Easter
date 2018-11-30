@@ -18,7 +18,7 @@
 
 #endif /* __PROGTEST__ */
 
-#include <functional>
+#include <utility>
 #include <vector>
 
 enum class Easter {
@@ -65,12 +65,35 @@ void yearInRange(const uint64_t year) {
 
 } 
 
+void yearStringIsValid(const std::string & year) {
+
+    if (not year.size()) {
+        throw std::runtime_error("Invalid input");
+    }
+
+    for (char c : year) {
+
+        if (isdigit(c) or isspace(c)) {
+            continue;
+        }
+        throw std::runtime_error("Invalid input");
+
+    }
+
+}
+
 std::vector<uint64_t> convertInterval(const std::string & interval) {
 
-    size_t dashPosition = interval.find("-");
+    const size_t dashPosition = interval.find("-");
 
-    uint64_t begin = std::stoll(interval.substr(0, dashPosition));
-    uint64_t end = std::stoll(interval.substr(dashPosition + 1));
+    const std::string left = interval.substr(0, dashPosition);
+    const std::string right = interval.substr(dashPosition + 1);
+
+    yearStringIsValid(left);
+    yearStringIsValid(right);
+
+    uint64_t begin = std::stoll(left);
+    const uint64_t end = std::stoll(right);
 
     yearInRange(begin);
     yearInRange(end);
@@ -98,7 +121,7 @@ std::vector<uint64_t> convertYears(const std::string & years) {
 
         std::string year;
         std::getline(ss, year, ',');
-        if (not isdigit(ss.peek())) {
+        if (isspace(ss.peek())) {
             ss.ignore(1);
         }
 
@@ -109,7 +132,8 @@ std::vector<uint64_t> convertYears(const std::string & years) {
 
         } else {
 
-            uint64_t y = std::stoll(year);
+            yearStringIsValid(year);
+            const uint64_t y = std::stoll(year);
             yearInRange(y);
             yearsVector.emplace_back(y);
 
@@ -132,6 +156,15 @@ struct EasterDate {
     
 };
 
+std::ostream & operator<<(std::ostream & os, const EasterDate & date) {
+    os  << "<tr>" 
+            << "<td>" << (uint32_t)date.day << "</td>" 
+            << "<td>" << (date.month == 3 ? "brezen" : "duben") << "</td>" 
+            << "<td>" << date.year << "</td>" 
+        << "</tr>";
+    return os;
+}
+
 EasterDate getEasterDate(const uint64_t y) {
 
     const uint64_t a = y % 19;
@@ -141,13 +174,13 @@ EasterDate getEasterDate(const uint64_t y) {
     const uint64_t e = b % 4;
     const uint64_t f = (b + 8) / 25;
     const uint64_t g = (b - f + 1) / 3;
-    const uint64_t h = (9 * a + b – d – g + 15) % 30;
+    const uint64_t h = ((19 * a) + b - d - g + 15) % 30;
     const uint64_t i = c / 4;
     const uint64_t k = c % 4;
-    const uint64_t l = (32 + 2 * e + 2 * i - h - k) % 7;
-    const uint64_t m = (a + 11 * h + 22 * l) / 451;
-    const uint64_t n = (h + l - 7 * m + 114) / 31;
-    const uint64_t p = (h + l - 7 * m + 114) % 31;
+    const uint64_t l = (32 + (2 * e) + (2 * i) - h - k) % 7;
+    const uint64_t m = (a + (11 * h) + (22 * l)) / 451;
+    const uint64_t n = (h + l - (7 * m) + 114) / 31;
+    const uint64_t p = (h + l - (7 * m) + 114) % 31;
 
     const uint8_t day = ((uint8_t)p) + 1;
     const uint8_t month = (uint8_t)n;
@@ -169,6 +202,44 @@ std::vector<EasterDate> getEasterDates(const std::vector<uint64_t> & years) {
 
 }
 
+void writeHeader(std::ofstream & file) {
+    
+    file << "<head>" << "\n";
+    file << "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">" << "\n";
+    file << "<title>C++</title>" << "\n";
+    file << "</head>" << "\n";
+
+}
+
+void writeBody(std::ofstream & file, const std::vector<EasterDate> & dates) {
+
+    file << "<body>" << "\n";
+    file << "<table width=\"300\">" << "\n";
+    file << "<tr><th width=\"99\">den</th><th width=\"99\">mesic</th><th width=\"99\">rok</th></tr>" << "\n";
+
+    for (const EasterDate & date : dates) {
+
+        file << date << "\n";
+
+    }
+
+    file << "</table>" << "\n";
+    file << "</body>" << "\n";
+
+}
+
+void outputToFile(std::ofstream & file, const std::vector<EasterDate> & dates) {
+
+    file << "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\">" << "\n";
+    file << "<html>" << "\n";
+
+    writeHeader(file);
+    writeBody(file, dates);
+
+    file << "</html>" << std::endl;
+
+}
+
 Easter printEasterDates(const std::string & years, const std::string & filename) {
 
     if (not filenameIsValid(filename)) {
@@ -184,6 +255,20 @@ Easter printEasterDates(const std::string & years, const std::string & filename)
     }
 
     const std::vector<EasterDate> dates = getEasterDates(yearsVector);
+
+    try {
+        std::ofstream file(filename);
+        if (not file) {
+            throw std::runtime_error("IO Error");
+        }
+
+        outputToFile(file, dates);
+
+    } catch (const std::exception & e) {
+        return Easter::IOError;
+    }
+
+    return Easter::Ok;
 
 } 
 
